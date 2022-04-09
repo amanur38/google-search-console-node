@@ -1,0 +1,30 @@
+{
+  "name": "google-search-console",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amanur38/google-search-console-node.git"
+  },
+  "keywords": [
+    "search",
+    "console"
+  ],
+  "author": "Amanur Rahman",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/amanur38/google-search-console-node/issues"
+  },
+  "homepage": "https://github.com/amanur38/google-search-console-node#readme",
+  "dependencies": {
+    "googleapis": "^100.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.23",
+    "typescript": "^4.6.3"
+  }
+}
