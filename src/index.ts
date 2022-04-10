@@ -39,7 +39,7 @@ jwtClient.authorize(async (err, tokens) => {
   // If get the access token then call to database that
   // these url was not request to index, so get these url with set a limit
   connection.query(
-    "SELECT * from InstituteListClone where isIndex = false order by id desc limit 2 ",
+    "SELECT * from InstituteListClone where isIndex = 0 order by id desc limit 50 ",
     async function (error: any, results: any, fields: any) {
       if (error) throw error;
       const parsedData = JSON.parse(JSON.stringify(results));
@@ -47,76 +47,105 @@ jwtClient.authorize(async (err, tokens) => {
       for (const data of parsedData) {
         const id = data.id;
         const url = `https://eiinbd.howdo.live/${data.slug}`;
+        const urlEncode = encodeURI(url);
+
         // Check if this url requested for index
-        checkAndRequestToIndex(url, tokens, id);
-        currentRow += 1;
+        const check = checkIsIndex(urlEncode, tokens);
+        check.then(async (data) => {
+          // @ts-ignore
+          if (data.error?.code == 404) {
+            // If the url was not request for index then call to the request to index
+            await requestToIndex(urlEncode, tokens, id);
+          } else {
+            await updateTableSetIndex(id);
+          }
+          console.log(
+            "🚀 ~ file: index.ts ~ line 55 ~ check.then ~ data",
+            data
+          );
+        });
+
+        // console.log("🚀 ~ file: index.ts ~ line 52 ~ check", check);
+        // @ts-ignore
+        // if (check.error?.code == 404) {
+        //   // If the url was not request for index then call to the request to index
+        //   await requestToIndex(urlEncode, tokens, id);
+        // } else {
+        //   await updateTableSetIndex(id);
+        // }
       }
     }
   );
-
-  // connection.end();
 });
 
-const checkAndRequestToIndex = (url: string, tokens: any, id: string) => {
-  const urlEncode = encodeURI(url);
-
-  let getOptions = {
-    url: `https://indexing.googleapis.com/v3/urlNotifications/metadata?url=${urlEncode}`,
-    method: "GET",
-    // Your options, which must include the Content-Type and auth headers
-    headers: {
-      "Content-Type": "application/json",
-    },
-    auth: { bearer: tokens.access_token },
-  };
-  request(getOptions, function (error: any, response: any, body: any) {
-    // Handle the response
-    const parse = JSON.parse(body);
-    if (parse.error?.code == 404) {
-      // If the url was not request for index then call to the request to index
-      requestToIndex(urlEncode, tokens, id);
-    }
-    console.log(parse);
+const checkIsIndex = (url: string, tokens: any) => {
+  return new Promise((resolve) => {
+    let getOptions = {
+      url: `https://indexing.googleapis.com/v3/urlNotifications/metadata?url=${url}`,
+      method: "GET",
+      // Your options, which must include the Content-Type and auth headers
+      headers: {
+        "Content-Type": "application/json",
+      },
+      auth: { bearer: tokens.access_token },
+    };
+    request(getOptions, async function (error: any, response: any, body: any) {
+      const parse = JSON.parse(body);
+      resolve(parse);
+    });
   });
 };
 
 const requestToIndex = (url: string, tokens: any, id: string) => {
-  let options = {
-    url: "https://indexing.googleapis.com/v3/urlNotifications:publish",
-    method: "POST",
-    // Your options, which must include the Content-Type and auth headers
-    headers: {
-      "Content-Type": "application/json",
-    },
-    auth: { bearer: tokens.access_token },
-    // Define contents here. The structure of the content is described in the next step.
-    json: {
-      url: url,
-      type: "URL_UPDATED",
-    },
-  };
+  return new Promise((resolve) => {
+    let options = {
+      url: "https://indexing.googleapis.com/v3/urlNotifications:publish",
+      method: "POST",
+      // Your options, which must include the Content-Type and auth headers
+      headers: {
+        "Content-Type": "application/json",
+      },
+      auth: { bearer: tokens.access_token },
+      // Define contents here. The structure of the content is described in the next step.
+      json: {
+        url: url,
+        type: "URL_UPDATED",
+      },
+    };
 
-  request(options, async function (error: any, response: any, body: any) {
-    // Handle the response
-    console.log(body);
-    try {
-      const parse = JSON.parse(body);
-      // If the request will success then update the column isIndex to true
-      if (parse.body?.code == 200) {
-        await connection.query(
-          "UPDATE InstituteListClone set isIndex = ? where id = ?",
-          [true, id],
-          function (error: any, results: any, fields: any) {
-            if (error) throw error;
-          }
-        );
-        if (totalRow == currentRow) {
-          connection.end();
+    request(options, async function (error: any, response: any, body: any) {
+      // Handle the response
+      console.log(body);
+      try {
+        // If the request will success then update the column isIndex to true
+        if (!body.error?.code) {
+          await updateTableSetIndex(id);
+        }
+      } catch (error) {
+        console.log("🚀 ~ file: index.ts ~ line 118 ~ error", error);
+        connection.end();
+      }
+    });
+  });
+};
+
+const updateTableSetIndex = (id: string) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      "UPDATE InstituteListClone set isIndex = ? where id = ?",
+      [true, id],
+      function (error: any, results: any, fields: any) {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(results);
         }
       }
-    } catch (error) {
-      console.log("🚀 ~ file: index.ts ~ line 118 ~ error", error);
+    );
+    currentRow += 1;
+    if (totalRow == currentRow) {
       connection.end();
     }
+    console.log("🚀 ~ loop at now : ", currentRow);
   });
 };
