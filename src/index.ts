@@ -56,23 +56,17 @@ jwtClient.authorize(async (err, tokens) => {
           if (data.error?.code == 404) {
             // If the url was not request for index then call to the request to index
             await requestToIndex(urlEncode, tokens, id);
-          } else {
+            // @ts-ignore
+          } else if (data.error?.code == 429 || data.error?.code == 401) {
+            console.log("🚀 ~ error on request limit or unauthorize ", data);
+            return;
+          }
+          // @ts-ignore
+          if (data.url) {
+            // If already updated to google then update to local DB
             await updateTableSetIndex(id);
           }
-          console.log(
-            "🚀 ~ file: index.ts ~ line 55 ~ check.then ~ data",
-            data
-          );
         });
-
-        // console.log("🚀 ~ file: index.ts ~ line 52 ~ check", check);
-        // @ts-ignore
-        // if (check.error?.code == 404) {
-        //   // If the url was not request for index then call to the request to index
-        //   await requestToIndex(urlEncode, tokens, id);
-        // } else {
-        //   await updateTableSetIndex(id);
-        // }
       }
     }
   );
@@ -115,7 +109,7 @@ const requestToIndex = (url: string, tokens: any, id: string) => {
 
     request(options, async function (error: any, response: any, body: any) {
       // Handle the response
-      console.log(body);
+      console.log(`Requested to index: `, body);
       try {
         // If the request will success then update the column isIndex to true
         if (!body.error?.code) {
